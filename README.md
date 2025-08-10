@@ -70,21 +70,17 @@ npm run prisma:setup
 ### Inicie o Servidor
 Execute:
 ```bash
-npm run dev
-```
-ou use o Docker
-
-```bash
-docker build -f Dockerfile.dev -t cubos_bank_api .
-```
-
-```bash
-docker run -p ${PORT}:4000 cubos_bank_api
+npm run start:prod
 ```
 
 Para o valor configurado na variável `PORT` é onde a aplicação será executada e estará disponível para acesso `http://localhost:${PORT}`.
 
-**Observação**: No Dockerfile.dev a porta do container está configurado para 4000.
+ou use o Docker Compose
+
+```bash
+docker-compose up
+```
+e a aplicação, por padrão, vai rodar na porta 4000, `http://localhost:4000`.
 
 ## Endpoints da Aplicação
 
