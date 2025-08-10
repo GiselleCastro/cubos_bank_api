@@ -146,8 +146,10 @@ export class ReverseTransactionUseCase {
       status: TransactionStatus.requested,
     })
 
+    const empontentIdToRevertTransaction = uuid()
+
     try {
-      await this.compilanceAPI.createTransaction(empontentId, {
+      await this.compilanceAPI.createTransaction(empontentIdToRevertTransaction, {
         description: updatedRegisteredTransaction!.description,
         externalId: newTransactionId,
       })
