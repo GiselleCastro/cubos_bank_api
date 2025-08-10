@@ -42,6 +42,12 @@ export class CreateTransactionUseCase {
         )
       }
 
+      if (!data.value) {
+        throw new BadRequestError(
+          'The transaction amount must not be R$ 0.00.',
+        )
+      }
+      
       const transactionType = inferTransactionType(data.value)
 
       const absoluteAmountInCentsOfTheTransaction = Math.abs(
