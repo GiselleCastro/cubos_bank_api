@@ -30,7 +30,7 @@ export class CompilanceAPI extends RestClient {
         }
 
         if (
-          error.response?.status === HttpStatusCode.Unauthorized &&
+          error.response.status === HttpStatusCode.Unauthorized &&
           !originalRequest._retry
         ) {
           if (this.isRefreshing) {
@@ -59,12 +59,23 @@ export class CompilanceAPI extends RestClient {
               this.processQueue(null, this.accessToken)
               return this.instance(originalRequest)
             } catch (error) {
-              this.processQueue(error, null)
-              return Promise.reject(error)
+              if (error instanceof InternalServerError) {
+                this.accessToken = null
+                this.refreshToken = null
+                this.authCode = null
+                this.processQueue(error, null)
+                logger.error(error)
+                return Promise.reject(error)
+              }
             }
           } finally {
             this.isRefreshing = false
           }
+        }
+
+        if (error.response.status instanceof AppError) {
+          logger.error(error)
+          throw new InternalServerError('InternalServerError')
         }
 
         return Promise.reject(error)
@@ -91,7 +102,9 @@ export class CompilanceAPI extends RestClient {
       this.authCode = response.data.data.authCode
     } catch {
       logger.error('obtainAuthCode')
-      throw new InternalServerError(`Unable to obtain auth code.`)
+      throw new InternalServerError(
+        `Unable to obtain auth code to access the Compilance API.`,
+      )
     }
   }
 
@@ -115,7 +128,9 @@ export class CompilanceAPI extends RestClient {
         throw new UnauthorizedError('Invalid auth code.')
       }
       logger.error('Unable to obtain access token.')
-      throw new InternalServerError('Unable to obtain access token.')
+      throw new InternalServerError(
+        'Unable to obtain access token to access the Compilance API.',
+      )
     }
   }
 
@@ -127,18 +142,21 @@ export class CompilanceAPI extends RestClient {
       logger.info(response.data)
       this.accessToken = response.data.data.accessToken
     } catch (error) {
+      logger.error(error)
+      this.refreshToken = null
+      this.accessToken = null
+      this.authCode = null
       if (
         error instanceof AxiosError &&
         error.response?.status === HttpStatusCode.Unauthorized
       ) {
-        this.refreshToken = null
-        this.accessToken = null
-        this.authCode = null
         logger.error('Refresh token expired.')
-        throw new InternalServerError('Interna lServer Error')
+        throw new InternalServerError(
+          'Internal Server Error to access the Compilance API',
+        )
       }
-      logger.error('Unable to obtain refresh access token.')
-      throw new InternalServerError('Internal Server Error.')
+      logger.error('Unable to obtain refresh access token to access the Compilance API.')
+      throw new InternalServerError('Internal Server Error to access the Compilance API.')
     }
   }
 
@@ -223,7 +241,6 @@ export class CompilanceAPI extends RestClient {
     const headers = await this.getHeaders()
     try {
       const response = await this.get(`/transaction`, {}, headers)
-      logger.info(response.data)
       return response.data
     } catch (error) {
       if (error instanceof AppError) throw error
