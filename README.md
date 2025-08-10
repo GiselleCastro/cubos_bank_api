@@ -114,13 +114,13 @@ Para o valor configurado na variável `PORT` é onde a aplicação será executa
         - account (número da conta)
     - O sistema verifica se já existe uma conta com a mesma combinação branch + account.
     - Caso não exista, a conta é criada.
-    - Caso exista, a criação é bloqueada.
+    - Caso exista, um erro é retornado.
 
 - **GET** `/accounts`: Listar contas (rota privada, requer token)
 - **GET** `/accounts/{accountId}/balance`: Consultar saldo da conta (rota privada, requer token)
-    - O sistema identifica todas as transações da conta que estão com status `processing`.
+    - O sistema identifica todas as transações da conta que estão com status `processing` ou `requested`.
     - Essas transações são verificadas e aplicadas conforme necessário para atualizar o saldo.
-    - Após a atualização, o saldo final é retornado ao usuário
+    - Após a atualização, o saldo final é retornado ao usuário.
 
 ### Cartões
 - **POST** `/accounts/{accountId}/cards`: Criar cartão (rota privada, requer token)
@@ -128,9 +128,11 @@ Para o valor configurado na variável `PORT` é onde a aplicação será executa
         - type (tipo do cartão, se `virtual` ou `physical`)
         - number (número do cartão)
         - cvv (cvv)
+    - Se o cartão informado for `physical`, é verificado se já existe um cartão desse tipo.
+    - Caso haja, é retornado um erro. Caso contrário, prossegue.
     - O sistema verifica se já existe no banco um token correspondente ao cartão informado.
     - Caso não exista, o cartão é criado.
-    - Por questões de seguranç, o número do cartão e o cvv não são salvos no banco. Esses dados são tokenizados e salvo no banco o token (identificador do cartão), o blob (dado criptografado que é utilizado na recuperação dos dados do cartão, `number` e `cvv`) os últimos quatro dígitos do cartão e o `type`.
+    - O número do cartão e o cvv são tokenizados e salvo no banco o token (identificador do cartão), o blob (dado criptografado que é utilizado na recuperação dos dados do cartão, `number` e `cvv`) os últimos quatro dígitos do cartão e o `type`.
 
 - **GET** `/accounts/{accountId}/cards`: Listar cartões da conta (rota privada, requer token)
     - Ao receber a requisição, o sistema aplica o processo de detokenização sobre o token e o blob de cada cartão.
@@ -144,31 +146,31 @@ Para o valor configurado na variável `PORT` é onde a aplicação será executa
 
 
 ### Transações
-Antes de qualquer operação envolvendo transações, o sistema realiza uma verificação preliminar para identificar se existem transações com status `processing` que possam ter sido concluídas.
-    - O sistema verifica todas as transações com status `processing` relacionado a  conta.
-    - Para cada transação `processing`, é consultado o status na API de Compliance para confirmar se foi o status mudou para `authorized`.
-    - É verificado se a conta possui saldo suficiente para a realização da transação autorizada, seguindo a ordem de processar primeiro as transações do tipo `debit` e depois `credit`, da transação mais antiga para a mais atual.
-    - Se sim, com base nessas verificações, o status da transação é atualizado e o saldo da conta é também atualizado.
-    - Após essas etapas, o fluxo normal de cada endpoint relacionado a transações é executado.
+Antes de qualquer operação envolvendo transações, o sistema realiza uma verificação preliminar para identificar se existem transações com status diferente de `authorized` que possam ter sido devidamente processadas.
+- O sistema verifica todas as transações com status não `authorized` relacionado a  conta.
+- É consultado o status na API de Compliance para confirmar se foi o status mudou para `authorized` para cada transação não `authorized`.
+- É verificado se a conta possui saldo suficiente para a realização da transação que segue, seguindo a ordem de processar primeiro as transações do tipo `debit` e depois `credit`, da transação mais antiga para a mais atual.
+- Se sim, com base nessas verificações, o status da transação é atualizado e o saldo da conta é também atualizado.
+- Após essas etapas, o fluxo normal de cada endpoint relacionado a transações é executado.
 
 
 - **POST** `/accounts/{accountId}/transactions`: Criar transação (rota privada, requer token)
     - O usuário envia:
         - value (valor da transação, positivo para `credit`, negativo para `debit`)
         - description (descrição da transação)
-    - Antes de enviar a transação do tipo `débit` para a API de Compliance, o sistema verifica se há saldo suficiente na conta para realizar a operação.
-    - Se não houver, retornar erro de saldo insuficiente. Se houver saldo suficiente, o sistema envia um pedido de criação da transação para a API de Compliance, incluindo um ID de idempotência `empontentId` para evitar que o mesmo processo seja tratado múltiplas vezes pela API de Compilace.
+    - Antes de enviar a transação do tipo `debit` para a API de Compliance, o sistema verifica se há saldo suficiente na conta para realizar a operação.
+    - Se não houver, retornar erro de saldo insuficiente. Se houver saldo suficiente, o sistema envia um pedido de criação da transação para a API de Compliance, incluindo um ID de idempotência `empontentId`.
     - Após a criação, inicia-se um processo de *polling* para consultar o status da transação, com até `TRANSACTION_COMPILANCE_API_POLLING_MAX_RETRY` tentativas, a cada `TRANSACTION_COMPILANCE_API_POLLING_DELAY_MS` milissegundos.
     - As verificações possíveis são:
         - Se a transação não foi autorizada (`unauthorized`), é retornada uma falha informando que não foi possível realizar a operação.
         - Se a transação foi autorizada (`authorized`), essa informação é retornada e a transação é criada no banco com status autorizado.
-        - Se o status permanecer como processando (`processing`), essa informação é retornada e a transação é criada no banco com status `processing`.
+        - Se o status permanecer como processando (`processing`), essa informação é retornada e aatualizada no banco com status `processing`.
 
 - **GET** `/accounts/{accountId}/transactions?itemsPerPage={itemsPerPage}&currentPage={currentPage}&type={type}`: Listar transações de uma conta (rota privada, requer token)
-    - AO sistema busca as transações conforme os filtros e paginação informados.
+    - O sistema busca as transações conforme os filtros e paginação informados.
     - Caso a paginação não seja informada, são usados os valores padrão: `currentPage = 1`, `itemsPerPage = 10` e todos os tipos de transações, seja `credit` ou `debit`.
     - A lista é retornada em ordem decrescente de criação (do mais recente para o mais antigo).
-    - Não é retornada as transação de status `unauthorized`.
+    - Não é retornada as transação de status `requested`, pois são as requisições de não conhecimento da Compilance API.
 
 - **POST** `/accounts/{accountId}/transactions/internal`: Criar transação interna (rota privada, requer token)
     - O sistema verifica se há saldo disponível na conta do proprietário e na conta do recebedor, conforme o tipo da transação.
@@ -183,18 +185,14 @@ Antes de qualquer operação envolvendo transações, o sistema realiza uma veri
     - Caso já tenha sido revertida, é retornado um erro.
     - Caso não tenha sido revertida, verifica se a transação é interna ou não.
     - Se for transação interna:
-        - Verifica, tanto na conta do proprietário quanto na do recebedor, todas as transações em `processing`.
-
-        - Após a atualização dessas transações, verifica se a transação já foi revertida.
-        - Caso tenha sido revertida, é retornado um erro.
-        - Caso não tenha sido revertida, prossegue.
-
+        - Verifica se a transação já foi revertida.
+        - Caso sim, retorna erro. Caso não, o fluxo prossegue.
+        - Verifica, tanto na conta do proprietário quanto na do recebedor, todas as transações em não `authorized`.
         - Verifica se há saldo suficiente na conta onde será realizada a transação do tipo `credit`.
-        - Se houver saldo suficiente, cria duas novas transações: uma para a conta do proprietário e outra para a conta do recebedor com status `authorized`, transferindo os respectivos valores para reverter a operação.
+        - Se houver saldo suficiente, cria duas novas transações: uma para a conta do proprietário e outra para a conta do recebedor, ambas com status `authorized`, transferindo os respectivos valores para reverter a operação.
         - Tanto para a transação solicitada como para a transação relacionada, a transação é *flagged* com `isReverte = true`.
     - Se a transação foi externa:
-        - Verifica na conta do proprietário todas as transações em `processing`.
-
+        - Verifica na conta do proprietário todas as transações em não `authorized`.
         - Após a atualização dessas transações, verifica se a transação já foi revertida.
         - Caso tenha sido revertida, é retornado um erro.
         - Caso não tenha sido revertida, prossegue.
@@ -202,9 +200,9 @@ Antes de qualquer operação envolvendo transações, o sistema realiza uma veri
         - Caso não haja saldo, o processo é encerrado.
         - Se houver saldo suficiente, cria-se uma nova transação para a reversão.
         - É realizado um processo de polling para verificar a autorização da nova transação.
-        - Se autorizada, a transação recebe status autorizado.
+        - Se autorizada, a transação recebe status autorizado e o saldo é atualizado.
         - Se não autorizada, retorna um erro.
-        - Se o status permanecer como processando, a transação é criada no banco e o saldo é atualizado.
+        - Se o status permanecer como `processing` retorna os dados da transação.
         - Para a transação solicitada reversão a transação é *flagged* com `isReverte = true`.
 
 ## Decisões técnicas
@@ -243,3 +241,8 @@ Ao centralizar essa criação em uma *factory* que retorna as instâncias já co
 Foram implementados testes de integração para validar o comportamento da aplicação.
 Foi utilizado o Jest como framework principal de testes, aliado ao SuperTest para simular requisições HTTP e ao SpyOn para monitorar e inspecionar chamadas de funções durante a execução.
 
+
+## Para Testes Rápidos da Aplicação
+Com o *plugin* REST Client do VSCode é possível utilizar do arquivo `collections.http` para envio das requisições HTTP para a aplicação.
+
+**Autora**: Giselle dos Santos Castro

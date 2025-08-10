@@ -14,7 +14,6 @@ Content-Type: application/json
 @document = {{create_user.request.body.document}}
 @password = {{create_user.request.body.password}}
 
-
 # @name login
 POST {{BASE_URL}}/login
 Content-Type: application/json
@@ -25,7 +24,6 @@ Content-Type: application/json
 }
 ###
 @token = {{login.response.body.token}}
-###
 
 # @name create_account
 POST {{BASE_URL}}/accounts
@@ -33,7 +31,7 @@ Content-Type: application/json
 Authorization: Bearer {{token}}
 
 {
-    "branch": "100",
+    "branch": "001",
     "account": "1234567-1"
 }
 ###
@@ -50,8 +48,8 @@ Authorization: Bearer {{token}}
 
 {
   "type": "virtual",
-  "number": "5179 7447 9594 0003",
-  "cvv": "512"
+  "number": "1234 5678 9101 11213",
+  "cvv": "456"
 }
 ###
 
@@ -59,9 +57,10 @@ GET {{BASE_URL}}/accounts/{{accountId}}/cards
 Authorization: Bearer {{token}}
 ###
 
-GET {{BASE_URL}}/cards?itemsPerPage=2&currentPage=2
+GET {{BASE_URL}}/cards?itemsPerPage=10&currentPage=1
 Authorization: Bearer {{token}}
 ###
+
 
 # @name create_transaction
 POST {{BASE_URL}}/accounts/{{accountId}}/transactions
@@ -69,21 +68,12 @@ Content-Type: application/json
 Authorization: Bearer {{token}}
 
 {
-  "value": 0.11,
-  "description": "Teste"
+  "value": 10,
+  "description": "Para comprar o bolo."
 }
 ###
 
-GET {{BASE_URL}}/accounts/{{accountId}}/balance
-Authorization: Bearer {{token}}
-###
-
-@transactionId = {{create_transaction.response.body.id}}
-
-
-GET {{BASE_URL}}/accounts/{{accountId}}/transactions?itemsPerPage=20&currentPage=3&type=credit
-Authorization: Bearer {{token}}
-###
+@transactionId =  {{create_transaction.response.body.id}}
 
 # @name create_transaction_internal
 POST {{BASE_URL}}/accounts/{{accountId}}/transactions/internal
@@ -91,12 +81,22 @@ Content-Type: application/json
 Authorization: Bearer {{token}}
 
 {
-    "receiverAccountId": "c263280e-7673-4243-ab25-04e4d1648ced",
-    "value": -250000,
-    "description": "Tentar outro valor"
+    "receiverAccountId": "e41e0e24-473b-4d22-bc40-babe2d5409f8",
+    "value": 40.50,
+    "description": "Para ajudar no aluguel"
 }
 ###
 
+@transactionInternalId =  {{create_transaction_internal.response.body.id}}
+
+GET {{BASE_URL}}/accounts/{{accountId}}/transactions?itemsPerPage=10&currentPage=1&type=credit 
+Authorization: Bearer {{token}}
+###
+
+
+GET {{BASE_URL}}/accounts/{{accountId}}/balance
+Authorization: Bearer {{token}}
+###
 
 POST {{BASE_URL}}/accounts/{{accountId}}/transactions/{{transactionId}}/revert
 Authorization: Bearer {{token}}
