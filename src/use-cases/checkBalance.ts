@@ -1,8 +1,13 @@
 import type { AccountsRepository } from '../repositories/accounts'
 import { AppError, ForbiddenError, InternalServerError } from '../err/appError'
 import { convertCentsToReais } from '../utils/moneyConverter'
+import { CheckTransactionsService } from '../services/checkTransactions'
+
 export class CheckBalanceUseCase {
-  constructor(private readonly accountsRepository: AccountsRepository) {}
+  constructor(
+    private readonly accountsRepository: AccountsRepository,
+    private readonly checkTransactionsService: CheckTransactionsService,
+  ) {}
 
   async execute(accountId: string, userId: string): Promise<{ balance: number }> {
     try {
@@ -14,8 +19,13 @@ export class CheckBalanceUseCase {
         )
       }
 
+      await this.checkTransactionsService.execute(accountId, userId)
+
+      const updatedRegisteredAccount =
+        await this.accountsRepository.findByAccountId(accountId)
+
       const balance = {
-        balance: convertCentsToReais(registeredAccount.balance),
+        balance: convertCentsToReais(updatedRegisteredAccount!.balance),
       }
 
       return balance

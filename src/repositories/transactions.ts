@@ -9,19 +9,7 @@ import type { CreateTransaction, RevertTransaction } from '../types/transactions
 export class TransactionsRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(data: CreateTransaction, balance: number | null): Promise<Transactions> {
-    if (balance !== null) {
-      const [transaction] = await this.prisma.$transaction([
-        this.prisma.transactions.create({ data }),
-        this.prisma.accounts.update({
-          where: { id: data.accountId },
-          data: {
-            balance,
-          },
-        }),
-      ])
-      return transaction
-    }
+  async create(data: CreateTransaction): Promise<Transactions> {
     return this.prisma.transactions.create({ data })
   }
 
@@ -116,6 +104,9 @@ export class TransactionsRepository {
     return this.prisma.transactions.findMany({
       where: {
         accountId,
+        status: {
+          not: TransactionStatus.requested,
+        },
         ...(type && { type }),
       },
       skip,
@@ -134,11 +125,15 @@ export class TransactionsRepository {
     })
   }
 
-  async findAllByAccountIdAndStatusProcessingAndWithEmpontentId(accountId: string) {
+  async findAllByAccountIdAndNotStatusAuthorizedProcessingAndWithEmpontentId(
+    accountId: string,
+  ) {
     return this.prisma.transactions.findMany({
       where: {
         accountId,
-        status: TransactionStatus.processing,
+        status: {
+          not: TransactionStatus.authorized,
+        },
         empontentId: {
           not: null,
         },
@@ -175,9 +170,20 @@ export class TransactionsRepository {
     accountId: string,
     transactionId: string,
     status: TransactionStatus,
-    balance: number,
-    reversedById: string | null,
+    balance: number | null = null,
+    reversedById: string | null = null,
   ) {
+    if (!balance) {
+      return this.prisma.$transaction([
+        this.prisma.transactions.update({
+          where: {
+            id: transactionId,
+          },
+          data: { status },
+        }),
+      ])
+    }
+
     if (!reversedById) {
       return this.prisma.$transaction([
         this.prisma.accounts.update({

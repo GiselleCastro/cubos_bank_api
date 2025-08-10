@@ -22,7 +22,7 @@ export class CheckTransactionsService {
       }
 
       const listOfAllTransactionsCurrentStatusProcessingAndWithEmpontentId =
-        await this.transactionsRepository.findAllByAccountIdAndStatusProcessingAndWithEmpontentId(
+        await this.transactionsRepository.findAllByAccountIdAndNotStatusAuthorizedProcessingAndWithEmpontentId(
           accountId,
         )
 
@@ -30,12 +30,10 @@ export class CheckTransactionsService {
 
       listOfAllTransactionsCurrentStatusProcessingAndWithEmpontentId.forEach(
         async (i) => {
-          const status = allTransactionByCompilanceAPI.data.find(
+          const status = allTransactionByCompilanceAPI.find(
             (j) => i.id === j.externalId,
           )?.status
-
           if (!status) return
-
           if (status === TransactionStatus.authorized) {
             try {
               const accountToBeUpdate = await this.accountsRepository.findByAccountId(
@@ -56,9 +54,18 @@ export class CheckTransactionsService {
             } catch {
               return
             }
+          } else {
+            await this.transactionsRepository.updateStatusAndBalance(
+              i.accountId,
+              i.id,
+              status,
+            )
           }
         },
       )
+
+      const DB_PROPAGATION_DELAY_MS = 100
+      await new Promise((_) => setTimeout(_, DB_PROPAGATION_DELAY_MS))
     } catch (error) {
       if (error instanceof AppError) throw error
       throw new InternalServerError(

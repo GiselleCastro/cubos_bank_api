@@ -33,10 +33,7 @@ export type TransactionCompilanceAPIResponse = {
   data: TransactionCompilanceAPI
 }
 
-export type ListTransactionCompilanceAPIResponse = {
-  success: boolean
-  data: TransactionCompilanceAPI[]
-}
+export type ListTransactionCompilanceAPIResponse = TransactionCompilanceAPI[]
 
 export type CreateTransaction = CreateTransactionData & {
   id: string
