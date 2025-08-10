@@ -112,11 +112,15 @@ export class ReverseTransactionUseCase {
       throw new ConflictError('Unable to reverse transaction as it was not processed.')
     }
 
+    if (updatedRegisteredTransaction!.isReverted) {
+      throw new ConflictError('Transaction already reverted.')
+    }
+
     const revertedTransactionType = invertTransactionType(
       updatedRegisteredTransaction!.type,
     )
 
-    const value = convertAbsoluteAmountToAmount(
+    const valueToBeRefunded = convertAbsoluteAmountToAmount(
       updatedRegisteredTransaction!.value,
       revertedTransactionType,
     )
@@ -124,7 +128,7 @@ export class ReverseTransactionUseCase {
     const updatedRegisteredAccount =
       await this.accountsRepository.findByAccountId(accountId)
 
-    const balanceUpdated = updatedRegisteredAccount!.balance + value
+    const balanceUpdated = updatedRegisteredAccount!.balance + valueToBeRefunded
 
     if (balanceUpdated < 0) {
       throw new PaymentRequiredError('Insufficient balance.')
@@ -132,32 +136,39 @@ export class ReverseTransactionUseCase {
 
     const newTransactionId = uuid()
 
-    await this.compilanceAPI.createTransaction(empontentId, {
+    const registerRevertedTransaction = await this.transactionsRepository.create({
+      id: newTransactionId,
+      value: updatedRegisteredTransaction!.value,
+      type: revertedTransactionType,
       description: updatedRegisteredTransaction!.description,
-      externalId: newTransactionId,
+      accountId,
+      reversedById: updatedRegisteredTransaction!.id,
+      status: TransactionStatus.requested,
     })
+
+    try {
+      await this.compilanceAPI.createTransaction(empontentId, {
+        description: updatedRegisteredTransaction!.description,
+        externalId: newTransactionId,
+      })
+    } catch {
+      throw new BadRequestError('Unable to request transaction.')
+    }
 
     const statusTransaction = await pollingTransactionStatus(empontentId, () =>
       this.compilanceAPI.getTransactionById(empontentId),
     )
 
-    const registerRevertedTransaction = await this.transactionsRepository.revert(
-      {
-        id: newTransactionId,
-        value: updatedRegisteredTransaction!.value,
-        type: revertedTransactionType,
-        description: updatedRegisteredTransaction!.description,
-        accountId,
-        reversedById: updatedRegisteredTransaction!.id,
-        status: statusTransaction,
-      },
+    await this.transactionsRepository.updateStatusAndBalance(
+      accountId,
+      newTransactionId,
+      statusTransaction,
       statusTransaction === TransactionStatus.authorized ? balanceUpdated : null,
     )
 
     if (statusTransaction === TransactionStatus.unauthorized) {
       throw new PaymentRequiredError('Payment refused by Compilance API.')
     }
-
     return registerRevertedTransaction
   }
 
@@ -247,6 +258,7 @@ export class ReverseTransactionUseCase {
       relatedTransactionId: newRelatedTransactionId,
       status: TransactionStatus.authorized,
     }
+
     const registeredTransaction = await this.transactionsRepository.revertInternal(
       transactionOwnerAccount,
       transactionReceiverAccount,

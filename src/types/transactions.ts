@@ -42,10 +42,7 @@ export type CreateTransaction = CreateTransactionData & {
   status: TransactionStatus
   empontentId?: string
   relatedTransactionId?: string
-}
-
-export type RevertTransaction = CreateTransaction & {
-  reversedById: string
+  reversedById?: string
 }
 
 export type PaginationByTransaction = z.infer<typeof transactionPaginationSchema> & {

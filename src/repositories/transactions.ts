@@ -4,7 +4,7 @@ import {
   TransactionStatus,
   TransactionType,
 } from '@prisma/client'
-import type { CreateTransaction, RevertTransaction } from '../types/transactions'
+import type { CreateTransaction } from '../types/transactions'
 
 export class TransactionsRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -13,32 +13,9 @@ export class TransactionsRepository {
     return this.prisma.transactions.create({ data })
   }
 
-  async revert(data: RevertTransaction, balance: number | null): Promise<Transactions> {
-    if (balance !== null) {
-      const [transaction] = await this.prisma.$transaction([
-        this.prisma.transactions.create({ data }),
-        this.prisma.transactions.update({
-          where: { id: data.reversedById },
-          data: {
-            isReverted: true,
-          },
-        }),
-        this.prisma.accounts.update({
-          where: { id: data.accountId },
-          data: {
-            balance,
-          },
-        }),
-      ])
-
-      return transaction
-    }
-    return this.prisma.transactions.create({ data })
-  }
-
   async revertInternal(
-    transactionOwnerAccount: RevertTransaction,
-    transactionReceiverAccount: RevertTransaction,
+    transactionOwnerAccount: CreateTransaction,
+    transactionReceiverAccount: CreateTransaction,
     balanceOwner: number,
     balanceReceiver: number,
     relatedTransactionId: string,

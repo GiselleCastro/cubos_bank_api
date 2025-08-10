@@ -37,9 +37,7 @@ export class CreateInternalTransferUseCase {
       }
 
       if (!data.value) {
-        throw new BadRequestError(
-          'The transaction amount must not be R$ 0.00.',
-        )
+        throw new BadRequestError('The transaction amount must not be R$ 0.00.')
       }
 
       const { receiverAccountId } = data

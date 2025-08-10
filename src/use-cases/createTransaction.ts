@@ -43,11 +43,9 @@ export class CreateTransactionUseCase {
       }
 
       if (!data.value) {
-        throw new BadRequestError(
-          'The transaction amount must not be R$ 0.00.',
-        )
+        throw new BadRequestError('The transaction amount must not be R$ 0.00.')
       }
-      
+
       const transactionType = inferTransactionType(data.value)
 
       const absoluteAmountInCentsOfTheTransaction = Math.abs(
@@ -77,17 +75,15 @@ export class CreateTransactionUseCase {
 
       const transactionId = uuid()
 
-      const registeredTransaction = await this.transactionsRepository.create(
-        {
-          id: transactionId,
-          value: absoluteAmountInCentsOfTheTransaction,
-          type: transactionType,
-          description: data.description,
-          accountId,
-          empontentId,
-          status: TransactionStatus.requested,
-        },
-      )
+      const registeredTransaction = await this.transactionsRepository.create({
+        id: transactionId,
+        value: absoluteAmountInCentsOfTheTransaction,
+        type: transactionType,
+        description: data.description,
+        accountId,
+        empontentId,
+        status: TransactionStatus.requested,
+      })
 
       try {
         await this.compilanceAPI.createTransaction(empontentId, {
