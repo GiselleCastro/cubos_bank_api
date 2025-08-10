@@ -59,6 +59,7 @@ enum TransactionStatus {
   processing
   unauthorized
   authorized
+  requested
 }
 
 model Transactions {
