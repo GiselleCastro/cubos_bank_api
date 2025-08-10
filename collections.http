@@ -1,0 +1,105 @@
+@BASE_URL = http://localhost:4000
+
+# @name create_user
+POST {{BASE_URL}}/people
+Content-Type: application/json
+
+{
+    "document": "051.554.903-75",
+    "password": "123456",
+    "name": "Giselle"
+}
+###
+
+@document = {{create_user.request.body.document}}
+@password = {{create_user.request.body.password}}
+
+
+# @name login
+POST {{BASE_URL}}/login
+Content-Type: application/json
+
+{
+    "document": "{{document}}",
+    "password": "{{password}}"
+}
+###
+@token = {{login.response.body.token}}
+###
+
+# @name create_account
+POST {{BASE_URL}}/accounts
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "branch": "100",
+    "account": "1234567-1"
+}
+###
+
+@accountId = {{create_account.response.body.id}}
+
+GET {{BASE_URL}}/accounts
+Authorization: Bearer {{token}}
+###
+
+POST {{BASE_URL}}/accounts/{{accountId}}/cards
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "type": "virtual",
+  "number": "5179 7447 9594 0003",
+  "cvv": "512"
+}
+###
+
+GET {{BASE_URL}}/accounts/{{accountId}}/cards
+Authorization: Bearer {{token}}
+###
+
+GET {{BASE_URL}}/cards?itemsPerPage=2&currentPage=2
+Authorization: Bearer {{token}}
+###
+
+# @name create_transaction
+POST {{BASE_URL}}/accounts/{{accountId}}/transactions
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "value": 0.11,
+  "description": "Teste"
+}
+###
+
+GET {{BASE_URL}}/accounts/{{accountId}}/balance
+Authorization: Bearer {{token}}
+###
+
+@transactionId = {{create_transaction.response.body.id}}
+
+
+GET {{BASE_URL}}/accounts/{{accountId}}/transactions?itemsPerPage=20&currentPage=3&type=credit
+Authorization: Bearer {{token}}
+###
+
+# @name create_transaction_internal
+POST {{BASE_URL}}/accounts/{{accountId}}/transactions/internal
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "receiverAccountId": "c263280e-7673-4243-ab25-04e4d1648ced",
+    "value": -250000,
+    "description": "Tentar outro valor"
+}
+###
+
+
+POST {{BASE_URL}}/accounts/{{accountId}}/transactions/{{transactionId}}/revert
+Authorization: Bearer {{token}}
+###
+
+

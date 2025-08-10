@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Users {
+  id           String   @id
+  name         String
+  document     String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  accounts Accounts[]
+}
+
+model Accounts {
+  id        String   @id
+  branch    String
+  account   String
+  balance   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  userId    String
+
+  user         Users          @relation(fields: [userId], references: [id])
+  Transactions Transactions[]
+  cards        Cards[]
+}
+
+enum CardType {
+  physical
+  virtual
+}
+
+model Cards {
+  id        String   @id
+  type      CardType
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  accountId String
+  last4     String
+  token     String   @unique
+  blob      Bytes
+
+  account Accounts @relation(fields: [accountId], references: [id])
+}
+
+enum TransactionType {
+  credit
+  debit
+}
+
+enum TransactionStatus {
+  processing
+  unauthorized
+  authorized
+}
+
+model Transactions {
+  id                   String             @id
+  value                Int
+  description          String
+  type                 TransactionType
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @default(now()) @updatedAt
+  accountId            String
+  isReverted           Boolean            @default(false)
+  empontentId          String?
+  reversedById         String?
+  relatedTransactionId String?
+  status               TransactionStatus?
+
+  account      Accounts       @relation(fields: [accountId], references: [id])
+  transaction  Transactions?  @relation("Revert", fields: [reversedById], references: [id])
+  Transactions Transactions[] @relation("Revert")
+}
