@@ -1,5 +1,4 @@
 import { env } from '../config/env'
-import { RequestTimeoutError } from '../err/appError'
 import { TransactionStatus } from '@prisma/client'
 
 const wait = (milliseconds: number) => {
@@ -20,6 +19,8 @@ export async function pollingTransactionStatus(
 
   while (retry <= maxRetry) {
     try {
+      await wait(delayMilisecons)
+
       const { data } = await getTransactionById(empontentId)
       const { status } = data
 
@@ -40,9 +41,8 @@ export async function pollingTransactionStatus(
       }
     }
 
-    await wait(delayMilisecons)
     retry++
   }
 
-  throw new RequestTimeoutError('Polling exceeded max retries without definitive status.')
+  return TransactionStatus.processing
 }

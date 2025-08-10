@@ -1,6 +1,7 @@
 import type { TransactionsRepository } from '../repositories/transactions'
 import {
   AppError,
+  BadRequestError,
   ForbiddenError,
   InternalServerError,
   PaymentRequiredError,
@@ -70,15 +71,6 @@ export class CreateTransactionUseCase {
 
       const transactionId = uuid()
 
-      await this.compilanceAPI.createTransaction(empontentId, {
-        description: data.description,
-        externalId: transactionId,
-      })
-
-      const status = await pollingTransactionStatus(empontentId, () =>
-        this.compilanceAPI.getTransactionById(empontentId),
-      )
-
       const registeredTransaction = await this.transactionsRepository.create(
         {
           id: transactionId,
@@ -87,8 +79,27 @@ export class CreateTransactionUseCase {
           description: data.description,
           accountId,
           empontentId,
-          status,
+          status: TransactionStatus.requested,
         },
+      )
+
+      try {
+        await this.compilanceAPI.createTransaction(empontentId, {
+          description: data.description,
+          externalId: transactionId,
+        })
+      } catch {
+        throw new BadRequestError('Unable to request transaction.')
+      }
+
+      const status = await pollingTransactionStatus(empontentId, () =>
+        this.compilanceAPI.getTransactionById(empontentId),
+      )
+
+      await this.transactionsRepository.updateStatusAndBalance(
+        accountId,
+        transactionId,
+        status,
         status === TransactionStatus.authorized ? balanceUpdated : null,
       )
 
